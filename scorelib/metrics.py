@@ -428,6 +428,27 @@ def der(ref_turns, sys_turns, collar=0.0, ignore_overlaps=False, uem=None):
     global_der : float
         Overall diarization error rate (in percent).
 
+    file_to_miss : dict
+        Mapping from files to miss error rates (in percent) for those
+        files.
+
+    global_miss : float
+        Overall miss error rate (in percent).
+
+    file_to_fa : dict
+        Mapping from files to false alarm error rates (in percent) for those
+        files.
+
+    global_fa : float
+        Overall false alarm error rate (in percent).
+
+    file_to_spker : dict
+        Mapping from files to speaker confusion error rates (in percent) for those
+        files.
+
+    global_spker : float
+        Overall speaker confusion error rate (in percent).
+         
     References
     ----------
     NIST. (2009). The 2009 (RT-09) Rich Transcription Meeting Recognition
@@ -480,18 +501,39 @@ def der(ref_turns, sys_turns, collar=0.0, ignore_overlaps=False, uem=None):
     with np.errstate(invalid='ignore', divide='ignore'):
         error_times = miss_speaker_times + fa_speaker_times + error_speaker_times
         ders = error_times / scored_speaker_times
+        misses = miss_speaker_times / scored_speaker_times
+        fas = fa_speaker_times / scored_speaker_times
+        spkers = error_speaker_times / scored_speaker_times
     ders[np.isnan(ders)] = 0 # Numerator and denominator both 0.
     ders[np.isinf(ders)] = 1 # Numerator > 0, but denominator = 0.
     ders *= 100. # Convert to percent.
+    misses[np.isnan(misses)] = 0 # Numerator and denominator both 0.
+    misses[np.isinf(misses)] = 1 # Numerator > 0, but denominator = 0.
+    misses *= 100
+    fas[np.isnan(fas)] = 0 # Numerator and denominator both 0.
+    fas[np.isinf(fas)] = 1 # Numerator > 0, but denominator = 0.
+    fas *= 100
+    spkers[np.isnan(spkers)] = 0 # Numerator and denominator both 0.
+    spkers[np.isinf(spkers)] = 1 # Numerator > 0, but denominator = 0.
+    spkers *= 100
 
     # Reconcile with UEM, keeping in mind that in the edge case where no
     # reference turns are observed for a file, md-eval doesn't report results
     # for said file.
     file_to_der_base = dict(zip(file_ids, ders))
+    file_to_miss_base = dict(zip(file_ids, misses))
+    file_to_fa_base = dict(zip(file_ids, fas))
+    file_to_spker_base = dict(zip(file_ids, spkers))
     file_to_der = {}
+    file_to_miss = {}
+    file_to_fa = {}
+    file_to_spker = {}
     for file_id in uem:
         try:
             der = file_to_der_base[file_id]
+            miss = file_to_miss_base[file_id]
+            fa = file_to_fa_base[file_id]
+            spker = file_to_spker_base[file_id]
         except KeyError:
             # Check for any system turns for that file, which should be FAs,
             # assuming that the turns have been cropped to the UEM scoring
@@ -499,10 +541,20 @@ def der(ref_turns, sys_turns, collar=0.0, ignore_overlaps=False, uem=None):
             n_sys_turns = len(
                 [turn for turn in sys_turns if turn.file_id == file_id])
             der = 100. if n_sys_turns else 0.0
+            fa = 100. if n_sys_turns else 0.0
+            miss = 0
+            spker = 0
         file_to_der[file_id] = der
+        file_to_miss[file_id] = miss
+        file_to_fa[file_id] = fa
+        file_to_spker[file_id] = spker
     global_der = file_to_der_base['ALL']
+    global_miss = file_to_miss_base['ALL']
+    global_fa = file_to_fa_base['ALL']
+    global_spker = file_to_spker_base['ALL']
 
-    return file_to_der, global_der
+    return file_to_der, global_der, file_to_miss, global_miss, \
+        file_to_fa, global_fa, file_to_spker, global_spker
 
 
 def jer(file_to_ref_durs, file_to_sys_durs, file_to_cm, min_ref_dur=0):
